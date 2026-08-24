@@ -1,4 +1,5 @@
 import datetime
+import io
 import os
 import re
 from bs4 import BeautifulSoup
@@ -40,8 +41,9 @@ def obtener_precios_omip():
         print("❌ No se encontraron tablas en la página de OMIP.")
         return None
 
-    # Extraer la primera tabla relevante de datos
-    df_lista = pd.read_html(str(tablas[0]))
+    # Parsear usando StringIO y especificación explícita de bs4/html5lib
+    html_str = str(tablas[0])
+    df_lista = pd.read_html(io.StringIO(html_str), flavor="bs4")
     if not df_lista:
         print("❌ No se pudieron procesar las tablas HTML.")
         return None
