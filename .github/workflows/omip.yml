@@ -1,0 +1,51 @@
+name: Extracción Diaria Precios OMIP
+
+on:
+  schedule:
+    # 17:30 UTC = 19:30 CEST (Horario de verano en España/Portugal)
+    # De lunes a viernes (días laborables de mercado)
+    - cron: '30 17 * * 1-5'
+  
+  # Permite ejecutar el flujo manualmente desde la pestaña "Actions" en GitHub
+  workflow_dispatch:
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Obtener el código fuente del repositorio
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      # 2. Configurar el entorno de Python
+      - name: Configurar Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip' # Acelera la instalación mediante caché
+
+      # 3. Instalar las librerías necesarias
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas beautifulsoup4 openpyxl
+
+      # 4. Ejecutar el script de extracción de OMIP
+      - name: Ejecutar script de extracción
+        run: python extraer_omip.py
+
+      # 5. Hacer commit y push de los archivos generados (.csv / .xlsx) al repositorio
+      - name: Guardar cambios en el repositorio
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add *.csv *.xlsx
+          
+          # Verificar si hay cambios antes de hacer commit para evitar errores
+          if git status --porcelain | grep -E '\.(csv|xlsx)$'; then
+            git commit -m "auto: actualización datos OMIP $(date +'%Y-%m-%d')"
+            git push
+          else
+            echo "No se encontraron nuevos archivos de datos para guardar."
+          fi
