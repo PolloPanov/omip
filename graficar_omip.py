@@ -42,9 +42,10 @@ def generar_grafico_omip(df, nombre_archivo=None):
     # 2. Limpieza de datos para el gráfico
     df_plot = df.copy()
 
-    # Si el precio sigue siendo tipo texto/string, convertir a numérico
-    if df_plot[col_precio].dtype == "O":
-        df_plot[col_precio] = (
+    # Si el precio sigue siendo tipo texto/if df_plot[col_precio].dtype == "O":
+        # Convierte automáticamente a número reemplazando comas por puntos
+df_plot[col_precio] = df_plot[col_precio].astype(str).str.replace(',', '.')
+df_plot[col_precio] = pd.to_numeric(df_plot[col_precio], errors='coerce')df_plot[col_precio] = (
             df_plot[col_precio]
             .astype(str)
             .str.replace(".", "", regex=False)
