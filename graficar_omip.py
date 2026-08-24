@@ -47,10 +47,7 @@ def generar_grafico_omip(df, nombre_archivo=None):
 df_plot[col_precio] = df_plot[col_precio].astype(str).str.replace(',', '.')
 # Convertir coma decimal a punto y transformar a número
 df_plot[col_precio] = df_plot[col_precio].astype(str).str.replace(',', '.')
-df_plot[col_precio] = pd.to_numeric(df_plot[col_precio], errors='coerce')
-            df_plot[col_precio]
-            .astype(str)
-            .str.replace(".", "", regex=False)
+df_plot[col_precio] = pd.to_numeric(df_plot[col_precio], errors='coerce')df_plot[col_precio].astype(str).str.replace(".", "", regex=False)
             .str.replace(",", ".", regex=False)
         )
         df_plot[col_precio] = pd.to_numeric(
