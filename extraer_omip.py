@@ -41,9 +41,9 @@ def obtener_precios_omip():
         print("❌ No se encontraron tablas en la página de OMIP.")
         return None
 
-    # Parsear usando StringIO y especificación explícita de bs4/html5lib
+    # Parsear usando StringIO y forzando el motor lxml para evitar dependencias faltantes
     html_str = str(tablas[0])
-    df_lista = pd.read_html(io.StringIO(html_str), flavor="bs4")
+    df_lista = pd.read_html(io.StringIO(html_str), flavor="lxml")
     if not df_lista:
         print("❌ No se pudieron procesar las tablas HTML.")
         return None
