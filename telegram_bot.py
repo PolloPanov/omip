@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 import requests
 
 
@@ -63,17 +64,38 @@ def enviar_imagen_telegram(
 
 
 def dar_formato_resumen_omip(df):
-    """Construye la plantilla del mensaje de texto con los datos clave del DataFrame."""
-    col_contrato = df.columns[0]
-    col_precio = df.columns[1]
+    """Construye la plantilla del mensaje de texto formateado en HTML con los datos clave del DataFrame."""
+    if df is None or df.empty:
+        return "⚠️ No hay datos disponibles para OMIP."
+
+    # Obtener fecha de la columna correspondiente o la primera disponible
+    fecha = (
+        df["Fecha_Extraccion"].iloc[0]
+        if "Fecha_Extraccion" in df.columns
+        else "N/A"
+    )
 
     mensaje = "<b>⚡ Previsiones de Mercado Futuro (OMIP)</b>\n"
-    mensaje += f"<i>Fecha: {df['Fecha_Extraccion'].iloc[0]}</i>\n\n"
+    mensaje += f"<i>Fecha: {fecha}</i>\n\n"
     mensaje += "<b>Resumen de Precios de Cierre:</b>\n"
 
     for _, fila in df.iterrows():
-        contrato = str(fila[col_contrato]).split(":")[0].strip()
-        precio = fila[col_precio]
+        # Acceso por posición iloc para evitar colisiones de nombres
+        # iloc[0] = Contrato/Nombre, iloc[1] = Precio
+        contrato_raw = str(fila.iloc[0])
+
+        # Limpieza básica para extraer la parte entendible del nombre
+        if ":" in contrato_raw:
+            contrato = contrato_raw.split(":")[0].strip()
+        else:
+            contrato = contrato_raw[:30].strip()
+
+        # Usar precio_limpio si existe o tomar la segunda columna
+        if "precio_limpio" in fila and pd.notnull(fila["precio_limpio"]):
+            precio = f"{float(fila['precio_limpio']):.2f}"
+        else:
+            precio = str(fila.iloc[1]).strip()
+
         mensaje += f"• <b>{contrato}:</b> {precio} €/MWh\n"
 
     mensaje += "\n📈 <i>Adjunto gráfico de la curva a futuro.</i>"
