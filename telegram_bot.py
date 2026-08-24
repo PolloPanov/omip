@@ -79,10 +79,18 @@ def dar_formato_resumen_omip(df):
     mensaje += f"<i>Fecha: {fecha}</i>\n\n"
     mensaje += "<b>Resumen de Precios de Cierre:</b>\n"
 
+    # Identificar las columnas candidatas a ser el precio
+    columnas_excluidas = {"Fecha_Extraccion", "contrato", "ISIN", "codigo"}
+    cols_datos = [
+        c
+        for c in df.columns
+        if c not in columnas_excluidas and not str(c).startswith("Unnamed")
+    ]
+
     for _, fila in df.iterrows():
         contrato_raw = str(fila.iloc[0]).strip()
 
-        # Extraer el nombre del contrato omitiendo prefijos
+        # Extraer el nombre limpio del contrato
         if "Fixo MWh:" in contrato_raw:
             contrato = contrato_raw.split("Fixo MWh:")[1].strip()
         elif ":" in contrato_raw:
@@ -90,21 +98,35 @@ def dar_formato_resumen_omip(df):
         else:
             contrato = contrato_raw
 
-        # Limpiar residuos iniciales de '€/MWh'
         contrato = contrato.replace("€/MWh", "").strip()
 
-        # Buscar el valor numérico recorriendo todas las columnas de la fila
+        # Extraer el precio real buscando números mayores a 0 o con decimales
         precio_val = "N/D"
-        for val in fila.values[1:]:
-            val_str = str(val).strip()
-            if val_str == fecha or val_str.lower() == "nan":
-                continue
 
-            # Buscar patrones numéricos como 54.20 o 54,20 dentro de la celda
-            match = re.search(r"(\d+[.,]\d+|\d+)", val_str)
-            if match:
-                precio_val = match.group(1).replace(",", ".")
-                break
+        # 1. Si existe columna 'precio_limpio', usarla con prioridad
+        if "precio_limpio" in fila and pd.notnull(fila["precio_limpio"]):
+            precio_val = f"{float(fila['precio_limpio']):.2f}"
+        else:
+            # 2. Recorrer celdas ignorando ceros sueltos y cadenas vacías
+            for col in cols_datos:
+                val = fila[col]
+                if pd.isnull(val):
+                    continue
+
+                # Convertir floats o ints directamente
+                if isinstance(val, (int, float)) and val > 0:
+                    precio_val = f"{float(val):.2f}"
+                    break
+
+                val_str = str(val).strip()
+                if val_str in ["0", "0.0", "0,0", "nan", "None", fecha]:
+                    continue
+
+                # Extraer patrón de precio con decimales o valor > 0
+                match = re.search(r"(\d+[.,]\d+)", val_str)
+                if match:
+                    precio_val = match.group(1).replace(",", ".")
+                    break
 
         mensaje += f"• <b>{contrato}:</b> {precio_val} €/MWh\n"
 
