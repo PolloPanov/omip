@@ -1,4 +1,5 @@
 import os
+import re
 import pandas as pd
 import requests
 
@@ -78,21 +79,10 @@ def dar_formato_resumen_omip(df):
     mensaje += f"<i>Fecha: {fecha}</i>\n\n"
     mensaje += "<b>Resumen de Precios de Cierre:</b>\n"
 
-    # Buscar automáticamente la columna de precio por palabra clave
-    col_precio = None
-    for col in df.columns:
-        c_lower = str(col).lower()
-        if any(
-            k in c_lower
-            for k in ["precio", "last", "settle", "cierre", "ultimo"]
-        ):
-            col_precio = col
-            break
-
     for _, fila in df.iterrows():
         contrato_raw = str(fila.iloc[0]).strip()
 
-        # Extraer el nombre legible del contrato (omite la cabecera 'ISIN Code: ...')
+        # Extraer el nombre del contrato omitiendo prefijos
         if "Fixo MWh:" in contrato_raw:
             contrato = contrato_raw.split("Fixo MWh:")[1].strip()
         elif ":" in contrato_raw:
@@ -100,16 +90,21 @@ def dar_formato_resumen_omip(df):
         else:
             contrato = contrato_raw
 
-        # Seleccionar valor del precio
-        if col_precio and pd.notnull(fila[col_precio]):
-            precio_val = str(fila[col_precio]).strip()
-        elif (
-            "precio_limpio" in fila
-            and pd.notnull(fila["precio_limpio"])
-        ):
-            precio_val = f"{float(fila['precio_limpio']):.2f}"
-        else:
-            precio_val = str(fila.iloc[1]).strip()
+        # Limpiar residuos iniciales de '€/MWh'
+        contrato = contrato.replace("€/MWh", "").strip()
+
+        # Buscar el valor numérico recorriendo todas las columnas de la fila
+        precio_val = "N/D"
+        for val in fila.values[1:]:
+            val_str = str(val).strip()
+            if val_str == fecha or val_str.lower() == "nan":
+                continue
+
+            # Buscar patrones numéricos como 54.20 o 54,20 dentro de la celda
+            match = re.search(r"(\d+[.,]\d+|\d+)", val_str)
+            if match:
+                precio_val = match.group(1).replace(",", ".")
+                break
 
         mensaje += f"• <b>{contrato}:</b> {precio_val} €/MWh\n"
 
