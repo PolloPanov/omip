@@ -25,7 +25,7 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
 
-      # 3. Instalar las librerías necesarias (incluyendo lxml y html5lib)
+      # 3. Instalar las librerías necesarias (incluyendo parsers HTML)
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
@@ -38,14 +38,17 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python extraer_omip.py
 
-      # 5. Hacer commit y push de los archivos generados (.csv / .xlsx)
+      # 5. Hacer commit y push de los archivos generados (.csv / .xlsx / .png)
       - name: Guardar cambios en el repositorio
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add *.csv *.xlsx *.png || true
           
-          if git status --porcelain | grep -E '\.(csv|xlsx|png)$'; then
+          # Agregar archivos de forma segura sin romper si algún formato no existe
+          git add *.csv *.xlsx || true
+          git add *.png || true
+          
+          if [ -n "$(git status --porcelain)" ]; then
             git commit -m "auto: actualización datos OMIP $(date +'%Y-%m-%d')"
             git push
           else
