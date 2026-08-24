@@ -96,10 +96,26 @@ def guardar_resultados(df):
     print(f"   - {archivo_excel}")
 
 
-if __name__ == "__main__":
-    df_omip = obtener_precios_omip()
+# Importar las funciones de los otros archivos que creaste
+from graficar_omip import generar_grafico_omip
+from telegram_bot import dar_formato_resumen_omip, enviar_mensaje_telegram, enviar_imagen_telegram
 
+if __name__ == "__main__":
+    # 1. Extraer datos del mercado OMIP
+    df_omip = obtener_precios_omip()
+    
     print("\n--- RESUMEN DE PRECIOS A FUTURO (OMIP) ---")
     print(df_omip.head(10))
-
+    
+    # 2. Guardar CSV y Excel
     guardar_resultados(df_omip)
+    
+    # 3. Generar el gráfico PNG de la curva de precios
+    ruta_grafico = generar_grafico_omip(df_omip)
+    
+    # 4. Formatear y enviar mensaje + imagen a Telegram
+    texto_resumen = dar_formato_resumen_omip(df_omip)
+    enviar_mensaje_telegram(texto_resumen)
+    
+    if ruta_grafico:
+        enviar_imagen_telegram(ruta_grafico, caption="📈 Curva de precios a futuro OMIP")

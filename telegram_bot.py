@@ -1,0 +1,80 @@
+import os
+import requests
+
+
+def enviar_mensaje_telegram(mensaje, bot_token=None, chat_id=None):
+    """Envía un mensaje de texto formateado en HTML a Telegram."""
+    token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN")
+    cid = chat_id or os.getenv("TELEGRAM_CHAT_ID")
+
+    if not token or not cid:
+        print("⚠️ Credenciales de Telegram no configuradas. Saltando envío.")
+        return
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": cid,
+        "text": mensaje,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+
+    response = requests.post(url, data=payload, timeout=10)
+    if response.status_code == 200:
+        print("💬 Mensaje enviado correctamente a Telegram.")
+    else:
+        print(
+            f"❌ Error al enviar mensaje a Telegram: {response.status_code} - {response.text}"
+        )
+
+
+def enviar_imagen_telegram(
+    ruta_imagen, caption="", bot_token=None, chat_id=None
+):
+    """Envía una imagen (gráfico PNG) con un pie de foto a Telegram."""
+    token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN")
+    cid = chat_id or os.getenv("TELEGRAM_CHAT_ID")
+
+    if not token or not cid:
+        print(
+            "⚠️ Credenciales de Telegram no configuradas. Saltando envío de imagen."
+        )
+        return
+
+    if not os.path.exists(ruta_imagen):
+        print(f"❌ La imagen {ruta_imagen} no existe.")
+        return
+
+    url = f"https://api.telegram.org/bot{token}/sendPhoto"
+    payload = {"chat_id": cid, "caption": caption, "parse_mode": "HTML"}
+
+    with open(ruta_imagen, "rb") as foto:
+        files = {"photo": foto}
+        response = requests.post(
+            url, data=payload, files=files, timeout=15
+        )
+
+    if response.status_code == 200:
+        print("📊 Gráfico enviado correctamente a Telegram.")
+    else:
+        print(
+            f"❌ Error al enviar foto a Telegram: {response.status_code} - {response.text}"
+        )
+
+
+def dar_formato_resumen_omip(df):
+    """Construye la plantilla del mensaje de texto con los datos clave del DataFrame."""
+    col_contrato = df.columns[0]
+    col_precio = df.columns[1]
+
+    mensaje = "<b>⚡ Previsiones de Mercado Futuro (OMIP)</b>\n"
+    mensaje += f"<i>Fecha: {df['Fecha_Extraccion'].iloc[0]}</i>\n\n"
+    mensaje += "<b>Resumen de Precios de Cierre:</b>\n"
+
+    for _, fila in df.iterrows():
+        contrato = str(fila[col_contrato]).split(":")[0].strip()
+        precio = fila[col_precio]
+        mensaje += f"• <b>{contrato}:</b> {precio} €/MWh\n"
+
+    mensaje += "\n📈 <i>Adjunto gráfico de la curva a futuro.</i>"
+    return mensaje

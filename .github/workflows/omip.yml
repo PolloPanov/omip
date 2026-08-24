@@ -49,3 +49,9 @@ jobs:
           else
             echo "No se encontraron nuevos archivos de datos para guardar."
           fi
+          # 4. Ejecutar el script de extracción y envío
+      - name: Ejecutar script de extracción
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python extraer_omip.py
