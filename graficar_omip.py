@@ -11,21 +11,23 @@ def generar_grafico_omip(df):
 
     df_plot = df.copy()
 
-    # Identificar columnas (primera: contrato/producto, segunda: precio)
+    # Seleccionar explícitamente la primera y segunda columna por posición
     col_contrato = df_plot.columns[0]
     col_precio = df_plot.columns[1]
 
-    # Convertir columna de precio a formato numérico (limpia comas y puntos)
-    df_plot[col_precio] = (
-        df_plot[col_precio]
-        .astype(str)
+    # Asegurar que tomamos solo una columna (Series)
+    serie_precio = df_plot.iloc[:, 1]
+
+    # Convertir a texto y limpiar formato numérico
+    serie_precio = (
+        serie_precio.astype(str)
         .str.replace(".", "", regex=False)
         .str.replace(",", ".", regex=False)
     )
-    df_plot[col_precio] = pd.to_numeric(df_plot[col_precio], errors="coerce")
+    df_plot["precio_limpio"] = pd.to_numeric(serie_precio, errors="coerce")
 
     # Eliminar posibles filas sin valores numéricos
-    df_plot = df_plot.dropna(subset=[col_precio])
+    df_plot = df_plot.dropna(subset=["precio_limpio"])
 
     if df_plot.empty:
         print("⚠️ No hay precios válidos tras la conversión.")
@@ -35,7 +37,7 @@ def generar_grafico_omip(df):
     plt.figure(figsize=(10, 5))
     plt.plot(
         df_plot[col_contrato],
-        df_plot[col_precio],
+        df_plot["precio_limpio"],
         marker="o",
         color="#1f77b4",
         linewidth=2,
