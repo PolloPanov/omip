@@ -5,8 +5,6 @@ on:
     # 17:30 UTC = 19:30 CEST (Horario de verano en España/Portugal)
     # De lunes a viernes (días laborables de mercado)
     - cron: '30 17 * * 1-5'
-  
-  # Permite ejecutar el flujo manualmente desde la pestaña "Actions" en GitHub
   workflow_dispatch:
 
 jobs:
@@ -14,43 +12,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Obtener el código fuente del repositorio
       - name: Checkout del repositorio
         uses: actions/checkout@v4
 
-      # 2. Configurar el entorno de Python
       - name: Configurar Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           cache: 'pip'
 
-      # 3. Instalar las librerías necesarias (incluyendo parsers HTML)
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
           pip install requests pandas beautifulsoup4 openpyxl matplotlib lxml html5lib
 
-      # 4. Ejecutar el script de extracción y envío a Telegram
       - name: Ejecutar script de extracción
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python extraer_omip.py
 
-      # 5. Hacer commit y push de los archivos generados (.csv / .xlsx / .png)
+      # El día 1 de cada mes crea automáticamente la gráfica del mes anterior.
+      - name: Generar gráfica mensual si corresponde
+        run: python historico_omip.py --mensual-si-corresponde
+
       - name: Guardar cambios en el repositorio
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          
-          # Agregar archivos de forma segura sin romper si algún formato no existe
           git add *.csv *.xlsx || true
           git add *.png || true
-          
+          git add graficas_historicas/*.png || true
           if [ -n "$(git status --porcelain)" ]; then
-            git commit -m "auto: actualización datos OMIP $(date +'%Y-%m-%d')"
+            git commit -m "auto: actualización datos y gráficas OMIP $(date +'%Y-%m-%d')"
             git push
           else
-            echo "No se encontraron nuevos archivos de datos para guardar."
+            echo "No se encontraron nuevos archivos para guardar."
           fi
