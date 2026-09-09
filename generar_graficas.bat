@@ -2,6 +2,12 @@
 setlocal
 cd /d "%~dp0"
 
+if exist ".venv\Scripts\python.exe" (
+    set "PYTHON=.venv\Scripts\python.exe"
+) else (
+    set "PYTHON=python"
+)
+
 echo ==========================================
 echo       GRAFICAS HISTORICAS OMIP
 echo ==========================================
@@ -22,16 +28,22 @@ pause
 goto FIN
 
 :TREINTA
-python historico_omip.py --30-dias
+echo Generando grafica de los ultimos 30 dias...
+echo.
+"%PYTHON%" historico_omip.py --30-dias
+echo.
 pause
 goto FIN
 
 :MES
 set /p ANIO=Introduce el ano (ej. 2026): 
 set /p MES=Introduce el mes (1-12): 
-python historico_omip.py --mes %ANIO% %MES%
+echo.
+echo Generando grafica de %MES%/%ANIO%...
+echo.
+"%PYTHON%" historico_omip.py --mes %ANIO% %MES%
+echo.
 pause
-
 goto FIN
 
 :FIN
