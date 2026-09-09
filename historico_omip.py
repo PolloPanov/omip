@@ -7,6 +7,8 @@ from datetime import date, timedelta
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from telegram_bot import enviar_imagen_telegram
+
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 
 
@@ -74,26 +76,33 @@ def generar_grafica(datos, titulo, ruta):
     return True
 
 
-def generar_30_dias(historico, salida="graficas_historicas/omip_ultimos_30_dias.png"):
+def generar_30_dias(historico, enviar_telegram=True):
     if historico.empty:
         return False
     fecha_max = historico["fecha"].max()
     fecha_min = fecha_max - pd.Timedelta(days=29)
     datos = historico[historico["fecha"].between(fecha_min, fecha_max)]
-    return generar_grafica(datos, "Evolución de Precios Futuros OMIP - Últimos 30 Días", salida)
+    ruta = "graficas_historicas/omip_ultimos_30_dias.png"
+    creada = generar_grafica(datos, "Evolución de Precios Futuros OMIP - Últimos 30 Días", ruta)
+    if creada and enviar_telegram:
+        enviar_imagen_telegram(ruta, caption="📈 <i>Evolución de Precios Futuros OMIP - Últimos 30 días</i>")
+    return creada
 
 
-def generar_mes(historico, anio, mes):
+def generar_mes(historico, anio, mes, enviar_telegram=True):
     datos = historico[(historico["fecha"].dt.year == anio) & (historico["fecha"].dt.month == mes)]
     ruta = os.path.join("graficas_historicas", f"omip_{anio}_{mes:02d}.png")
-    return generar_grafica(datos, f"Evolución de Precios Futuros OMIP - {MESES[mes - 1].capitalize()} {anio}", ruta)
+    creada = generar_grafica(datos, f"Evolución de Precios Futuros OMIP - {MESES[mes - 1].capitalize()} {anio}", ruta)
+    if creada and enviar_telegram:
+        enviar_imagen_telegram(ruta, caption=f"📊 <i>Evolución de Precios Futuros OMIP - {MESES[mes - 1].capitalize()} {anio}</i>")
+    return creada
 
 
 def main():
     parser = argparse.ArgumentParser(description="Genera gráficas históricas OMIP a partir de los CSV diarios.")
-    parser.add_argument("--30-dias", dest="ultimos_30", action="store_true", help="Genera la gráfica de los últimos 30 días disponibles.")
-    parser.add_argument("--mes", nargs=2, type=int, metavar=("ANIO", "MES"), help="Genera un mes concreto, por ejemplo --mes 2026 9.")
-    parser.add_argument("--mensual-si-corresponde", action="store_true", help="Genera el mes natural anterior cuando hoy es día 1.")
+    parser.add_argument("--30-dias", dest="ultimos_30", action="store_true", help="Genera y envía la gráfica de los últimos 30 días disponibles.")
+    parser.add_argument("--mes", nargs=2, type=int, metavar=("ANIO", "MES"), help="Genera y envía un mes concreto, por ejemplo --mes 2026 9.")
+    parser.add_argument("--mensual-si-corresponde", action="store_true", help="Genera y envía el mes natural anterior cuando hoy es día 1.")
     args = parser.parse_args()
     historico = extraer_historico()
     if historico.empty:
