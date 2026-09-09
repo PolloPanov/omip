@@ -82,7 +82,102 @@ def ultimos_30():
     )
 
 
+def obtener_trimestres_disponibles(historico):
+    """
+    Obtiene los contratos trimestrales que realmente existen
+    en los CSV históricos.
+
+    Devuelve un diccionario con esta estructura:
+
+        {
+            2026: [4],
+            2027: [1, 2, 3, 4],
+            2028: [1, 2]
+        }
+    """
+
+    if historico.empty:
+        return {}
+
+    contratos = (
+        historico["contrato"]
+        .dropna()
+        .astype(str)
+        .str.strip()
+    )
+
+    disponibles = {}
+
+    for contrato in contratos.unique():
+
+        match = __import__("re").match(
+            r"^Q([1-4])-(\d{2})$",
+            contrato,
+        )
+
+        if not match:
+            continue
+
+        trimestre = int(
+            match.group(1)
+        )
+
+        anio_corto = int(
+            match.group(2)
+        )
+
+        # Los contratos OMIP utilizan los dos últimos dígitos.
+        # 00-79 -> 2000-2079
+        # 80-99 -> 2080-2099
+        # En la práctica actual trabajamos con 2026 en adelante.
+        if anio_corto < 80:
+            anio = 2000 + anio_corto
+        else:
+            anio = 1900 + anio_corto
+
+        if anio not in disponibles:
+            disponibles[anio] = []
+
+        if trimestre not in disponibles[anio]:
+            disponibles[anio].append(
+                trimestre
+            )
+
+    for anio in disponibles:
+        disponibles[anio].sort()
+
+    return dict(
+        sorted(
+            disponibles.items()
+        )
+    )
+
+
 def trimestre_concreto():
+
+    try:
+        historico = extraer_historico()
+
+        disponibles = obtener_trimestres_disponibles(
+            historico
+        )
+
+    except Exception as exc:
+        messagebox.showerror(
+            "OMIP",
+            f"No se pudieron leer los datos históricos:\n\n{exc}",
+            parent=root,
+        )
+        return
+
+    if not disponibles:
+        messagebox.showwarning(
+            "OMIP",
+            "No se encontraron contratos trimestrales con datos.",
+            parent=root,
+        )
+        return
+
     ventana = tk.Toplevel(root)
 
     ventana.title(
@@ -90,7 +185,7 @@ def trimestre_concreto():
     )
 
     ventana.geometry(
-        "430x300"
+        "430x330"
     )
 
     ventana.resizable(
@@ -126,14 +221,9 @@ def trimestre_concreto():
         pady=(0, 25)
     )
 
-    # Años disponibles.
-    anios = [
-        str(anio)
-        for anio in range(
-            2026,
-            2031,
-        )
-    ]
+    # ---------------------------------------------------------
+    # DESPLEGABLE DE AÑO
+    # ---------------------------------------------------------
 
     tk.Label(
         marco,
@@ -145,6 +235,11 @@ def trimestre_concreto():
     ).pack(
         anchor="w"
     )
+
+    anios = [
+        str(anio)
+        for anio in disponibles.keys()
+    ]
 
     combo_anio = ttk.Combobox(
         marco,
@@ -161,7 +256,9 @@ def trimestre_concreto():
         pady=(5, 18)
     )
 
-    combo_anio.current(0)
+    # ---------------------------------------------------------
+    # DESPLEGABLE DE TRIMESTRE
+    # ---------------------------------------------------------
 
     tk.Label(
         marco,
@@ -174,16 +271,8 @@ def trimestre_concreto():
         anchor="w"
     )
 
-    trimestres = [
-        "Q1",
-        "Q2",
-        "Q3",
-        "Q4",
-    ]
-
     combo_trimestre = ttk.Combobox(
         marco,
-        values=trimestres,
         state="readonly",
         font=(
             "Segoe UI",
@@ -196,20 +285,71 @@ def trimestre_concreto():
         pady=(5, 20)
     )
 
-    combo_trimestre.current(0)
+    def actualizar_trimestres(event=None):
 
-    def generar():
         try:
             anio = int(
                 combo_anio.get()
             )
 
-            trimestre_texto = (
-                combo_trimestre.get()
+            trimestres_anio = disponibles.get(
+                anio,
+                [],
+            )
+
+            opciones = [
+                f"Q{trimestre}"
+                for trimestre in trimestres_anio
+            ]
+
+            combo_trimestre["values"] = opciones
+
+            if opciones:
+                combo_trimestre.current(0)
+
+        except Exception:
+            combo_trimestre["values"] = []
+
+    combo_anio.bind(
+        "<<ComboboxSelected>>",
+        actualizar_trimestres,
+    )
+
+    combo_anio.current(0)
+
+    actualizar_trimestres()
+
+    # ---------------------------------------------------------
+    # BOTÓN GENERAR
+    # ---------------------------------------------------------
+
+    def generar():
+
+        try:
+            if not combo_anio.get():
+                messagebox.showwarning(
+                    "OMIP",
+                    "Selecciona un año.",
+                    parent=ventana,
+                )
+                return
+
+            if not combo_trimestre.get():
+                messagebox.showwarning(
+                    "OMIP",
+                    "Selecciona un trimestre.",
+                    parent=ventana,
+                )
+                return
+
+            anio = int(
+                combo_anio.get()
             )
 
             trimestre = int(
-                trimestre_texto[1]
+                combo_trimestre
+                .get()
+                .replace("Q", "")
             )
 
             ventana.destroy()
@@ -221,6 +361,7 @@ def trimestre_concreto():
             )
 
         except Exception as exc:
+
             messagebox.showerror(
                 "OMIP",
                 f"No se pudo seleccionar el trimestre:\n\n{exc}",
@@ -244,6 +385,10 @@ def trimestre_concreto():
         pady=(5, 0)
     )
 
+
+# =============================================================
+# VENTANA PRINCIPAL
+# =============================================================
 
 root = tk.Tk()
 
