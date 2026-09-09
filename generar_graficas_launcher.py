@@ -2,7 +2,7 @@ import os
 import sys
 import threading
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox, ttk
 
 from historico_omip import (
     extraer_historico,
@@ -66,10 +66,7 @@ def ejecutar(funcion, *args):
         )
 
 
-def ejecutar_en_hilo(
-    funcion,
-    *args,
-):
+def ejecutar_en_hilo(funcion, *args):
     hilo = threading.Thread(
         target=ejecutar,
         args=(funcion, *args),
@@ -86,32 +83,165 @@ def ultimos_30():
 
 
 def trimestre_concreto():
-    anio = simpledialog.askinteger(
-        "Trimestre concreto",
-        "Introduce el año (ej. 2027):",
-        minvalue=2000,
-        maxvalue=2100,
-        parent=root,
+    ventana = tk.Toplevel(root)
+
+    ventana.title(
+        "Trimestre concreto"
     )
 
-    if anio is None:
-        return
-
-    trimestre = simpledialog.askinteger(
-        "Trimestre concreto",
-        "Introduce el trimestre (1, 2, 3 o 4):",
-        minvalue=1,
-        maxvalue=4,
-        parent=root,
+    ventana.geometry(
+        "430x300"
     )
 
-    if trimestre is None:
-        return
+    ventana.resizable(
+        False,
+        False,
+    )
 
-    ejecutar_en_hilo(
-        generar_trimestre,
-        anio,
-        trimestre,
+    ventana.transient(root)
+    ventana.grab_set()
+
+    marco = tk.Frame(
+        ventana,
+        padx=30,
+        pady=25,
+    )
+
+    marco.pack(
+        fill="both",
+        expand=True,
+    )
+
+    titulo = tk.Label(
+        marco,
+        text="SELECCIONA EL TRIMESTRE",
+        font=(
+            "Segoe UI",
+            17,
+            "bold",
+        ),
+    )
+
+    titulo.pack(
+        pady=(0, 25)
+    )
+
+    # Años disponibles.
+    anios = [
+        str(anio)
+        for anio in range(
+            2026,
+            2031,
+        )
+    ]
+
+    tk.Label(
+        marco,
+        text="Año:",
+        font=(
+            "Segoe UI",
+            11,
+        ),
+    ).pack(
+        anchor="w"
+    )
+
+    combo_anio = ttk.Combobox(
+        marco,
+        values=anios,
+        state="readonly",
+        font=(
+            "Segoe UI",
+            12,
+        ),
+        width=25,
+    )
+
+    combo_anio.pack(
+        pady=(5, 18)
+    )
+
+    combo_anio.current(0)
+
+    tk.Label(
+        marco,
+        text="Trimestre:",
+        font=(
+            "Segoe UI",
+            11,
+        ),
+    ).pack(
+        anchor="w"
+    )
+
+    trimestres = [
+        "Q1",
+        "Q2",
+        "Q3",
+        "Q4",
+    ]
+
+    combo_trimestre = ttk.Combobox(
+        marco,
+        values=trimestres,
+        state="readonly",
+        font=(
+            "Segoe UI",
+            12,
+        ),
+        width=25,
+    )
+
+    combo_trimestre.pack(
+        pady=(5, 20)
+    )
+
+    combo_trimestre.current(0)
+
+    def generar():
+        try:
+            anio = int(
+                combo_anio.get()
+            )
+
+            trimestre_texto = (
+                combo_trimestre.get()
+            )
+
+            trimestre = int(
+                trimestre_texto[1]
+            )
+
+            ventana.destroy()
+
+            ejecutar_en_hilo(
+                generar_trimestre,
+                anio,
+                trimestre,
+            )
+
+        except Exception as exc:
+            messagebox.showerror(
+                "OMIP",
+                f"No se pudo seleccionar el trimestre:\n\n{exc}",
+                parent=ventana,
+            )
+
+    boton_generar = tk.Button(
+        marco,
+        text="GENERAR GRÁFICA",
+        command=generar,
+        font=(
+            "Segoe UI",
+            12,
+            "bold",
+        ),
+        height=2,
+        width=24,
+    )
+
+    boton_generar.pack(
+        pady=(5, 0)
     )
 
 
