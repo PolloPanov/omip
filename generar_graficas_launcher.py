@@ -1,7 +1,20 @@
+import os
+import sys
+import threading
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 
 from historico_omip import extraer_historico, generar_30_dias, generar_mes
+
+
+def obtener_carpeta_base():
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+BASE_DIR = obtener_carpeta_base()
+os.chdir(BASE_DIR)
 
 
 def ejecutar(funcion, *args):
@@ -10,10 +23,12 @@ def ejecutar(funcion, *args):
         if historico.empty:
             messagebox.showerror("OMIP", "No se encontraron datos históricos en los CSV diarios.")
             return
+
         root.config(cursor="wait")
         root.update()
         creada = funcion(historico, *args)
         root.config(cursor="")
+
         if creada:
             messagebox.showinfo("OMIP", "Gráfica generada correctamente y enviada a Telegram.")
         else:
@@ -23,18 +38,37 @@ def ejecutar(funcion, *args):
         messagebox.showerror("OMIP", f"Se produjo un error:\n\n{e}")
 
 
+def ejecutar_en_hilo(funcion, *args):
+    hilo = threading.Thread(target=ejecutar, args=(funcion, *args), daemon=True)
+    hilo.start()
+
+
 def ultimos_30():
-    ejecutar(generar_30_dias)
+    ejecutar_en_hilo(generar_30_dias)
 
 
 def mes_concreto():
-    anio = simpledialog.askinteger("Mes concreto", "Introduce el año (ej. 2026):", minvalue=2000, maxvalue=2100, parent=root)
+    anio = simpledialog.askinteger(
+        "Mes concreto",
+        "Introduce el año (ej. 2026):",
+        minvalue=2000,
+        maxvalue=2100,
+        parent=root,
+    )
     if anio is None:
         return
-    mes = simpledialog.askinteger("Mes concreto", "Introduce el mes (1-12):", minvalue=1, maxvalue=12, parent=root)
+
+    mes = simpledialog.askinteger(
+        "Mes concreto",
+        "Introduce el mes (1-12):",
+        minvalue=1,
+        maxvalue=12,
+        parent=root,
+    )
     if mes is None:
         return
-    ejecutar(generar_mes, anio, mes)
+
+    ejecutar_en_hilo(generar_mes, anio, mes)
 
 
 root = tk.Tk()
@@ -49,10 +83,24 @@ label.pack(pady=(0, 8))
 subtitle = tk.Label(root, text="Selecciona la gráfica que quieres generar", font=("Segoe UI", 11))
 subtitle.pack(pady=(0, 25))
 
-btn30 = tk.Button(root, text="📈  Últimos 30 días", command=ultimos_30, font=("Segoe UI", 17, "bold"), height=2, width=28)
+btn30 = tk.Button(
+    root,
+    text="📈  Últimos 30 días",
+    command=ultimos_30,
+    font=("Segoe UI", 17, "bold"),
+    height=2,
+    width=28,
+)
 btn30.pack(pady=10)
 
-btnmes = tk.Button(root, text="📊  Mes concreto", command=mes_concreto, font=("Segoe UI", 17, "bold"), height=2, width=28)
+btnmes = tk.Button(
+    root,
+    text="📊  Mes concreto",
+    command=mes_concreto,
+    font=("Segoe UI", 17, "bold"),
+    height=2,
+    width=28,
+)
 btnmes.pack(pady=10)
 
 footer = tk.Label(root, text="La gráfica se guarda y se envía automáticamente a Telegram", font=("Segoe UI", 9))
