@@ -5,29 +5,150 @@ import re
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 
 from telegram_bot import enviar_imagen_telegram
 
 
+OMIP_MERCADO_HOY_URL = (
+    "https://www.omip.pt/en/plazo-hoy"
+)
+
+
+def obtener_spel_base_hoy():
+    """
+    Obtiene automáticamente de la web oficial de OMIP
+    el precio actual de SPEL BASE.
+
+    Ejemplo:
+        SPEL BASE €145.21
+
+    Devuelve:
+        float -> 145.21
+    """
+
+    try:
+        respuesta = requests.get(
+            OMIP_MERCADO_HOY_URL,
+            timeout=20,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 "
+                    "(Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) "
+                    "Chrome/131.0 Safari/537.36"
+                )
+            },
+        )
+
+        respuesta.raise_for_status()
+
+    except requests.RequestException as exc:
+        raise RuntimeError(
+            "No se pudo conectar con la web de OMIP "
+            "para obtener el SPEL BASE."
+        ) from exc
+
+    try:
+        soup = BeautifulSoup(
+            respuesta.text,
+            "html.parser",
+        )
+
+        # Convertimos toda la página a texto continuo.
+        # Esto permite encontrar el dato aunque OMIP
+        # cambie ligeramente la estructura HTML.
+        texto = soup.get_text(
+            " ",
+            strip=True,
+        )
+
+        # Ejemplo que queremos detectar:
+        #
+        # SPEL BASE €145.21
+        #
+        # También admite:
+        # SPEL BASE 145.21
+        # SPEL BASE € 145.21
+        # SPEL BASE €145,21
+        patron = re.compile(
+            r"SPEL\s+BASE\s*"
+            r"(?:€\s*)?"
+            r"([0-9]+(?:[.,][0-9]+)?)",
+            re.IGNORECASE,
+        )
+
+        coincidencia = patron.search(
+            texto
+        )
+
+        if not coincidencia:
+            raise RuntimeError(
+                "No se encontró el precio SPEL BASE "
+                "en la página de OMIP."
+            )
+
+        valor_texto = (
+            coincidencia.group(1)
+            .replace(",", ".")
+        )
+
+        precio = float(
+            valor_texto
+        )
+
+        if precio <= 0:
+            raise RuntimeError(
+                f"El precio SPEL BASE obtenido no es válido: "
+                f"{precio}"
+            )
+
+        print(
+            f"✅ SPEL BASE OMIP de hoy: "
+            f"{precio:.2f} €/MWh"
+        )
+
+        return precio
+
+    except (ValueError, AttributeError) as exc:
+        raise RuntimeError(
+            "No se pudo interpretar correctamente "
+            "el precio SPEL BASE de OMIP."
+        ) from exc
+
+
 def extraer_historico():
     registros = []
-    archivos = sorted(glob.glob("omip_futuros_365d_*.csv"))
+
+    archivos = sorted(
+        glob.glob(
+            "omip_futuros_365d_*.csv"
+        )
+    )
 
     for archivo in archivos:
+
         try:
             df = pd.read_csv(
                 archivo,
                 header=1,
                 encoding="utf-8-sig",
             )
+
         except Exception as exc:
-            print(f"⚠️ No se pudo leer {archivo}: {exc}")
+            print(
+                f"⚠️ No se pudo leer {archivo}: {exc}"
+            )
             continue
 
         if df.empty:
             continue
 
-        nombre = os.path.basename(archivo)
+        nombre = os.path.basename(
+            archivo
+        )
 
         match_fecha = re.search(
             r"omip_futuros_365d_(\d{8})\.csv$",
@@ -48,7 +169,8 @@ def extraer_historico():
             (
                 c
                 for c in df.columns
-                if str(c).strip() == "Contract name"
+                if str(c).strip()
+                == "Contract name"
             ),
             None,
         )
@@ -57,21 +179,38 @@ def extraer_historico():
             (
                 c
                 for c in df.columns
-                if str(c).strip().startswith("D (€/MWh)")
+                if str(c).strip().startswith(
+                    "D (€/MWh)"
+                )
             ),
             None,
         )
 
-        if contrato_col is None or precio_col is None:
+        if (
+            contrato_col is None
+            or precio_col is None
+        ):
             print(
-                f"⚠️ Estructura no reconocida en {archivo}; se omite."
+                f"⚠️ Estructura no reconocida en "
+                f"{archivo}; se omite."
             )
             continue
 
-        tmp = df[[contrato_col, precio_col]].copy()
-        tmp.columns = ["contrato_raw", "precio"]
+        tmp = df[
+            [
+                contrato_col,
+                precio_col,
+            ]
+        ].copy()
 
-        tmp["fecha"] = fecha_extraccion
+        tmp.columns = [
+            "contrato_raw",
+            "precio",
+        ]
+
+        tmp["fecha"] = (
+            fecha_extraccion
+        )
 
         tmp["precio"] = pd.to_numeric(
             tmp["precio"],
@@ -79,13 +218,18 @@ def extraer_historico():
         )
 
         def limpiar_contrato(valor):
+
             texto = str(valor).strip()
 
-            if not texto or texto.lower() in {
-                "nan",
-                "none",
-                "contract name",
-            }:
+            if (
+                not texto
+                or texto.lower()
+                in {
+                    "nan",
+                    "none",
+                    "contract name",
+                }
+            ):
                 return None
 
             match = re.search(
@@ -99,8 +243,10 @@ def extraer_historico():
 
             return texto
 
-        tmp["contrato"] = tmp["contrato_raw"].map(
-            limpiar_contrato
+        tmp["contrato"] = (
+            tmp["contrato_raw"].map(
+                limpiar_contrato
+            )
         )
 
         tmp = tmp.dropna(
@@ -148,11 +294,21 @@ def extraer_historico():
             "fecha",
             "contrato",
         ]
-    ).reset_index(drop=True)
+    ).reset_index(
+        drop=True
+    )
 
 
 def filtrar_trimestrales(datos):
-    """Devuelve únicamente contratos trimestrales Q1, Q2, Q3, Q4."""
+    """
+    Devuelve únicamente contratos trimestrales:
+
+        Q1-27
+        Q2-27
+        Q3-27
+        Q4-27
+        etc.
+    """
 
     if datos.empty:
         return datos.copy()
@@ -172,7 +328,16 @@ def generar_grafica(
     titulo,
     ruta,
     contrato_destacado=None,
+    precio_spel_base=None,
 ):
+    """
+    Genera la gráfica histórica.
+
+    Si precio_spel_base está disponible,
+    añade una línea horizontal a toda la gráfica
+    representando el SPEL BASE publicado hoy por OMIP.
+    """
+
     if datos.empty:
         print(
             f"⚠️ No hay datos para generar {ruta}."
@@ -189,25 +354,35 @@ def generar_grafica(
     )
 
     if contrato_destacado:
+
         datos = datos[
-            datos["contrato"] == contrato_destacado
+            datos["contrato"]
+            == contrato_destacado
         ].copy()
 
         if datos.empty:
             print(
-                f"⚠️ No hay datos históricos para {contrato_destacado}."
+                f"⚠️ No hay datos históricos para "
+                f"{contrato_destacado}."
             )
+
             plt.close()
+
             return False
 
     contratos = sorted(
-        datos["contrato"].dropna().unique()
+        datos["contrato"]
+        .dropna()
+        .unique()
     )
 
     for contrato in contratos:
+
         serie = datos[
             datos["contrato"] == contrato
-        ].sort_values("fecha")
+        ].sort_values(
+            "fecha"
+        )
 
         if len(serie) < 2:
             continue
@@ -221,7 +396,6 @@ def generar_grafica(
             label=str(contrato),
         )
 
-        # Precio más reciente al final de cada línea.
         ultimo = serie.iloc[-1]
 
         plt.annotate(
@@ -234,6 +408,28 @@ def generar_grafica(
             textcoords="offset points",
             fontsize=8,
         )
+
+    ax = plt.gca()
+
+    # ==========================================================
+    # LÍNEA SPEL BASE DE HOY
+    # ==========================================================
+
+    if precio_spel_base is not None:
+
+        ax.axhline(
+            y=precio_spel_base,
+            linestyle="--",
+            linewidth=2.2,
+            label=(
+                "OMIP HOY · SPEL BASE "
+                f"{precio_spel_base:.2f} €/MWh"
+            ),
+        )
+
+    # ==========================================================
+    # TÍTULO Y EJES
+    # ==========================================================
 
     plt.title(
         titulo,
@@ -258,12 +454,21 @@ def generar_grafica(
         alpha=0.35,
     )
 
-    ax = plt.gca()
+    ax.spines[
+        "top"
+    ].set_visible(False)
 
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
+    ax.spines[
+        "right"
+    ].set_visible(False)
 
-    if len(contratos) > 1:
+    # Mostramos la leyenda cuando:
+    # - hay varios contratos, o
+    # - tenemos la línea SPEL BASE.
+    if (
+        len(contratos) > 1
+        or precio_spel_base is not None
+    ):
         plt.legend(
             fontsize=8,
             ncol=2,
@@ -273,13 +478,21 @@ def generar_grafica(
     plt.figtext(
         0.5,
         0.01,
-        "Evolución desde las predicciones más antiguas hasta las más recientes",
+        (
+            "Evolución desde las predicciones "
+            "más antiguas hasta las más recientes"
+        ),
         ha="center",
         fontsize=9,
     )
 
     plt.tight_layout(
-        rect=(0, 0.03, 1, 1)
+        rect=(
+            0,
+            0.03,
+            1,
+            1,
+        )
     )
 
     plt.savefig(
@@ -315,11 +528,15 @@ def generar_30_dias(
         )
         return False
 
-    fecha_max = historico["fecha"].max()
+    fecha_max = historico[
+        "fecha"
+    ].max()
 
     fecha_min = (
         fecha_max
-        - pd.Timedelta(days=29)
+        - pd.Timedelta(
+            days=29
+        )
     )
 
     datos = historico[
@@ -329,6 +546,28 @@ def generar_30_dias(
         )
     ].copy()
 
+    # ==========================================================
+    # OBTENER SPEL BASE DE HOY
+    # ==========================================================
+
+    try:
+        precio_spel_base = (
+            obtener_spel_base_hoy()
+        )
+
+    except Exception as exc:
+
+        print(
+            f"⚠️ {exc}"
+        )
+
+        print(
+            "⚠️ Se generará la gráfica "
+            "sin la línea SPEL BASE."
+        )
+
+        precio_spel_base = None
+
     ruta = os.path.join(
         "graficas_historicas",
         "omip_ultimos_30_dias_trimestral.png",
@@ -336,20 +575,42 @@ def generar_30_dias(
 
     creada = generar_grafica(
         datos,
-        "Evolución de Precios Futuros OMIP - Últimos 30 Días",
+        (
+            "Evolución de Precios Futuros OMIP "
+            "- Últimos 30 Días"
+        ),
         ruta,
+        precio_spel_base=precio_spel_base,
     )
 
     if not creada:
         return False
 
     if enviar_telegram:
+
+        if precio_spel_base is not None:
+
+            caption = (
+                "📈 <i>Evolución de Precios "
+                "Futuros OMIP</i>\n"
+                "Últimos 30 días · "
+                "Contratos trimestrales\n"
+                f"📌 SPEL BASE hoy: "
+                f"{precio_spel_base:.2f} €/MWh"
+            )
+
+        else:
+
+            caption = (
+                "📈 <i>Evolución de Precios "
+                "Futuros OMIP</i>\n"
+                "Últimos 30 días · "
+                "Contratos trimestrales"
+            )
+
         enviado = enviar_imagen_telegram(
             ruta,
-            caption=(
-                "📈 <i>Evolución de Precios Futuros OMIP</i>\n"
-                "Últimos 30 días · Contratos trimestrales"
-            ),
+            caption=caption,
         )
 
         if not enviado:
@@ -364,7 +625,12 @@ def generar_trimestre(
     trimestre,
     enviar_telegram=True,
 ):
-    if trimestre not in (1, 2, 3, 4):
+    if trimestre not in (
+        1,
+        2,
+        3,
+        4,
+    ):
         raise ValueError(
             "El trimestre debe ser 1, 2, 3 o 4."
         )
@@ -375,7 +641,8 @@ def generar_trimestre(
         )
 
     codigo_contrato = (
-        f"Q{trimestre}-{str(anio)[-2:]}"
+        f"Q{trimestre}-"
+        f"{str(anio)[-2:]}"
     )
 
     datos = filtrar_trimestrales(
@@ -389,7 +656,8 @@ def generar_trimestre(
 
     if datos.empty:
         print(
-            f"⚠️ No hay datos históricos para {codigo_contrato}."
+            f"⚠️ No hay datos históricos para "
+            f"{codigo_contrato}."
         )
         return False
 
@@ -397,13 +665,35 @@ def generar_trimestre(
         "fecha"
     )
 
+    # ==========================================================
+    # OBTENER SPEL BASE DE HOY
+    # ==========================================================
+
+    try:
+        precio_spel_base = (
+            obtener_spel_base_hoy()
+        )
+
+    except Exception as exc:
+
+        print(
+            f"⚠️ {exc}"
+        )
+
+        print(
+            "⚠️ Se generará la gráfica "
+            "sin la línea SPEL BASE."
+        )
+
+        precio_spel_base = None
+
     ruta = os.path.join(
         "graficas_historicas",
         f"omip_{codigo_contrato}.png",
     )
 
     titulo = (
-        f"Evolución del precio futuro OMIP - "
+        "Evolución del precio futuro OMIP - "
         f"{codigo_contrato}"
     )
 
@@ -412,18 +702,35 @@ def generar_trimestre(
         titulo,
         ruta,
         contrato_destacado=codigo_contrato,
+        precio_spel_base=precio_spel_base,
     )
 
     if not creada:
         return False
 
     if enviar_telegram:
+
+        if precio_spel_base is not None:
+
+            caption = (
+                "📊 <i>Evolución del precio "
+                "futuro OMIP</i>\n"
+                f"Contrato {codigo_contrato}\n"
+                f"📌 SPEL BASE hoy: "
+                f"{precio_spel_base:.2f} €/MWh"
+            )
+
+        else:
+
+            caption = (
+                "📊 <i>Evolución del precio "
+                "futuro OMIP</i>\n"
+                f"Contrato {codigo_contrato}"
+            )
+
         enviado = enviar_imagen_telegram(
             ruta,
-            caption=(
-                f"📊 <i>Evolución del precio futuro OMIP</i>\n"
-                f"Contrato {codigo_contrato}"
-            ),
+            caption=caption,
         )
 
         if not enviado:
@@ -433,9 +740,11 @@ def generar_trimestre(
 
 
 def main():
+
     parser = argparse.ArgumentParser(
         description=(
-            "Genera gráficas históricas trimestrales OMIP."
+            "Genera gráficas históricas "
+            "trimestrales OMIP."
         )
     )
 
@@ -444,8 +753,9 @@ def main():
         dest="ultimos_30",
         action="store_true",
         help=(
-            "Genera y envía la gráfica trimestral "
-            "de los últimos 30 días."
+            "Genera y envía la gráfica "
+            "trimestral de los últimos "
+            "30 días."
         ),
     )
 
@@ -453,7 +763,10 @@ def main():
         "--trimestre",
         nargs=2,
         type=int,
-        metavar=("ANIO", "TRIMESTRE"),
+        metavar=(
+            "ANIO",
+            "TRIMESTRE",
+        ),
         help=(
             "Genera un trimestre concreto. "
             "Ejemplo: --trimestre 2027 1"
@@ -465,20 +778,28 @@ def main():
     historico = extraer_historico()
 
     if historico.empty:
+
         print(
-            "❌ No se encontraron datos históricos "
-            "en los CSV diarios."
+            "❌ No se encontraron datos "
+            "históricos en los CSV diarios."
         )
+
         return 1
 
     if args.ultimos_30:
+
         correcto = generar_30_dias(
             historico
         )
 
-        return 0 if correcto else 1
+        return (
+            0
+            if correcto
+            else 1
+        )
 
     if args.trimestre:
+
         anio, trimestre = args.trimestre
 
         correcto = generar_trimestre(
@@ -487,7 +808,11 @@ def main():
             trimestre,
         )
 
-        return 0 if correcto else 1
+        return (
+            0
+            if correcto
+            else 1
+        )
 
     parser.print_help()
 
@@ -495,4 +820,6 @@ def main():
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(
+        main()
+    )
