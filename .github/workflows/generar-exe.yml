@@ -50,9 +50,10 @@ jobs:
       - name: Crear instalador
         shell: pwsh
         run: |
-          $iscc = "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe"
+          $pf86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+          $iscc = Join-Path $pf86 'Inno Setup 6\ISCC.exe'
           if (-not (Test-Path $iscc)) {
-            $iscc = "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+            $iscc = Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'
           }
           if (-not (Test-Path $iscc)) {
             throw "No se encontró Inno Setup (ISCC.exe)."
