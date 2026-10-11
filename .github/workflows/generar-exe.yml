@@ -1,4 +1,4 @@
-name: Generar ejecutable Windows
+name: Generar instalador de Windows OMIP
 
 on:
   push:
@@ -7,8 +7,16 @@ on:
       - 'historico_omip.py'
       - 'telegram_bot.py'
       - 'crear_icono.py'
+      - 'requirements.txt'
+      - 'omip_futuros_365d_*.csv'
+      - 'installer/omip.iss'
       - '.github/workflows/generar-exe.yml'
+    tags:
+      - 'v*'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -21,20 +29,48 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
 
-      - name: Instalar dependencias
+      - name: Instalar dependencias y PyInstaller
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller requests pandas beautifulsoup4 openpyxl matplotlib lxml html5lib pillow
+          pip install -r requirements.txt
+          pip install pyinstaller pillow
 
       - name: Crear icono OMIP
         run: python crear_icono.py
 
-      - name: Crear ejecutable gráfico
+      - name: Compilar ejecutable gráfico
         run: pyinstaller --onefile --windowed --clean --name Generar_Graficas_OMIP --icon=omip.ico generar_graficas_launcher.py
 
-      - name: Guardar ejecutable
+      - name: Instalar Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Crear instalador
+        shell: pwsh
+        run: |
+          $iscc = "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $iscc = "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          }
+          if (-not (Test-Path $iscc)) {
+            throw "No se encontró Inno Setup (ISCC.exe)."
+          }
+          & $iscc "installer\omip.iss"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup terminó con error $LASTEXITCODE"
+          }
+
+      - name: Guardar instalador descargable
         uses: actions/upload-artifact@v4
         with:
-          name: Generar_Graficas_OMIP
-          path: dist/Generar_Graficas_OMIP.exe
+          name: OMIP-Instalador-Windows
+          path: dist/OMIP-Setup.exe
+          if-no-files-found: error
+
+      - name: Adjuntar instalador a GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/OMIP-Setup.exe
