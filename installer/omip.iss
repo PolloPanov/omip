@@ -4,7 +4,7 @@
 #define MyAppPublisher "PolloPanov"
 
 [Setup]
-AppId={{B1A56A0D-0B4A-4C3A-8C7A-2026A001}
+AppId={{B1A56A0D-0B4A-4C3A-8C7A-2026A0010001}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
